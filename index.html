@@ -25,6 +25,13 @@
             border-bottom: 2px solid #6366f1;
             color: #6366f1;
         }
+        .animate-fadeIn {
+            animation: fadeIn 0.3s ease-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(5px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
     </style>
 </head>
 <body class="min-h-screen text-slate-800">
@@ -60,10 +67,10 @@
         </div>
 
         <!-- Filter Tabs -->
-        <div class="flex gap-6 mb-6 border-b border-slate-200 text-slate-500 font-medium">
-            <button onclick="filterTasks('today')" id="tab-today" class="pb-2 tab-active">今天必做</button>
-            <button onclick="filterTasks('later')" id="tab-later" class="pb-2">计划稍后</button>
-            <button onclick="filterTasks('goals')" id="tab-goals" class="pb-2">长期愿望</button>
+        <div class="flex gap-6 mb-6 border-b border-slate-200 text-slate-500 font-medium overflow-x-auto whitespace-nowrap">
+            <button onclick="filterTasks('today')" id="tab-today" class="pb-2 tab-active transition-all">今天必做</button>
+            <button onclick="filterTasks('later')" id="tab-later" class="pb-2 transition-all">计划稍后</button>
+            <button onclick="filterTasks('goals')" id="tab-goals" class="pb-2 transition-all">长期愿望</button>
         </div>
 
         <!-- Task List -->
@@ -93,8 +100,6 @@
         const timeLeftDisplay = document.getElementById('time-left');
         const timerToggleBtn = document.getElementById('timer-toggle');
 
-        // --- Task Management ---
-
         function renderTasks() {
             const filtered = tasks.filter(t => t.category === currentFilter);
             taskList.innerHTML = '';
@@ -103,117 +108,30 @@
                 emptyState.classList.remove('hidden');
             } else {
                 emptyState.classList.add('hidden');
-                filtered.forEach((task, index) => {
+                filtered.forEach((task) => {
                     const div = document.createElement('div');
                     div.className = `glass-card p-4 rounded-xl flex items-center justify-between group animate-fadeIn transition-all hover:shadow-md`;
+                    
+                    // Logic to show move buttons based on current view
+                    let moveActions = '';
+                    if (currentFilter !== 'today') {
+                        moveActions += `<button onclick="moveTask(${task.id}, 'today')" title="移至今天" class="p-1 hover:text-orange-500"><i class="fas fa-fire"></i></button>`;
+                    }
+                    if (currentFilter !== 'later') {
+                        moveActions += `<button onclick="moveTask(${task.id}, 'later')" title="移至稍后" class="p-1 hover:text-blue-500"><i class="fas fa-clock"></i></button>`;
+                    }
+                    if (currentFilter !== 'goals') {
+                        moveActions += `<button onclick="moveTask(${task.id}, 'goals')" title="移至目标" class="p-1 hover:text-emerald-500"><i class="fas fa-bullseye"></i></button>`;
+                    }
+
                     div.innerHTML = `
-                        <div class="flex items-center gap-3">
-                            <button onclick="toggleTask(${task.id})" class="w-6 h-6 rounded-full border-2 border-indigo-200 flex items-center justify-center hover:border-indigo-500 transition-colors">
+                        <div class="flex items-center gap-3 flex-1">
+                            <button onclick="toggleTask(${task.id})" class="w-6 h-6 shrink-0 rounded-full border-2 border-indigo-200 flex items-center justify-center hover:border-indigo-500 transition-colors">
                                 ${task.completed ? '<i class="fas fa-check text-indigo-500 text-xs"></i>' : ''}
                             </button>
-                            <span class="${task.completed ? 'task-done text-slate-400' : 'text-slate-700'} font-medium">
+                            <span class="${task.completed ? 'task-done text-slate-400' : 'text-slate-700'} font-medium break-words">
                                 ${task.text}
                             </span>
                         </div>
-                        <button onclick="deleteTask(${task.id})" class="text-slate-300 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <i class="fas fa-trash-alt"></i>
-                        </button>
-                    `;
-                    taskList.appendChild(div);
-                });
-            }
-            saveData();
-        }
-
-        function addTask() {
-            const text = taskInput.value.trim();
-            if (!text) return;
-            
-            const newTask = {
-                id: Date.now(),
-                text: text,
-                category: categorySelect.value,
-                completed: false,
-                createdAt: new Date()
-            };
-            
-            tasks.unshift(newTask);
-            taskInput.value = '';
-            currentFilter = newTask.category;
-            updateTabs();
-            renderTasks();
-        }
-
-        function toggleTask(id) {
-            tasks = tasks.map(t => t.id === id ? {...t, completed: !t.completed} : t);
-            renderTasks();
-        }
-
-        function deleteTask(id) {
-            tasks = tasks.filter(t => t.id !== id);
-            renderTasks();
-        }
-
-        function filterTasks(cat) {
-            currentFilter = cat;
-            updateTabs();
-            renderTasks();
-        }
-
-        function updateTabs() {
-            ['today', 'later', 'goals'].forEach(cat => {
-                document.getElementById(`tab-${cat}`).className = cat === currentFilter ? 'pb-2 tab-active' : 'pb-2';
-            });
-        }
-
-        function saveData() {
-            localStorage.setItem('zendo-tasks', JSON.stringify(tasks));
-        }
-
-        // --- Timer Logic ---
-
-        function updateTimerDisplay() {
-            const mins = Math.floor(timeLeft / 60);
-            const secs = timeLeft % 60;
-            timeLeftDisplay.textContent = `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-        }
-
-        function toggleTimer() {
-            if (isTimerRunning) {
-                clearInterval(timer);
-                timerToggleBtn.innerHTML = '<i class="fas fa-play"></i>';
-            } else {
-                timer = setInterval(() => {
-                    timeLeft--;
-                    updateTimerDisplay();
-                    if (timeLeft <= 0) {
-                        clearInterval(timer);
-                        showNotification("专注时间结束！休息一下吧。");
-                        timeLeft = 25 * 60;
-                        isTimerRunning = false;
-                        timerToggleBtn.innerHTML = '<i class="fas fa-play"></i>';
-                    }
-                }, 1000);
-                timerToggleBtn.innerHTML = '<i class="fas fa-pause"></i>';
-            }
-            isTimerRunning = !isTimerRunning;
-        }
-
-        function showNotification(msg) {
-            const toast = document.createElement('div');
-            toast.className = "fixed bottom-4 right-4 bg-indigo-600 text-white px-6 py-3 rounded-lg shadow-xl animate-bounce";
-            toast.textContent = msg;
-            document.body.appendChild(toast);
-            setTimeout(() => toast.remove(), 4000);
-        }
-
-        // --- Events ---
-        addTaskBtn.addEventListener('click', addTask);
-        taskInput.addEventListener('keypress', (e) => e.key === 'Enter' && addTask());
-        timerToggleBtn.addEventListener('click', toggleTimer);
-
-        // Initial Render
-        renderTasks();
-    </script>
-</body>
-</html>
+                        <div class="flex items-center gap-2 text-slate-300 transition-opacity">
+                            <div class="flex gap-1 border-r border-slate-100 pr-2 mr-1 opacity-0 group-hover:opacity-100 transition-opacity">
