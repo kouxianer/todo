@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ZenDo - 极简专注清单</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap');
+        body {
+            font-family: 'Inter', 'Microsoft YaHei', sans-serif;
+            background-color: #f8fafc;
+        }
+        .glass-card {
+            background: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+        .task-done {
+            text-decoration: line-through;
+            opacity: 0.5;
+        }
+        .tab-active {
+            border-bottom: 2px solid #6366f1;
+            color: #6366f1;
+        }
+    </style>
+</head>
+<body class="min-h-screen text-slate-800">
+
+    <div class="max-w-2xl mx-auto px-4 py-8">
+        <!-- Header -->
+        <header class="flex justify-between items-center mb-8">
+            <div>
+                <h1 class="text-3xl font-bold text-indigo-600">ZenDo</h1>
+                <p class="text-slate-500 text-sm">让效率回归简单</p>
+            </div>
+            <div id="timer-display" class="bg-indigo-100 text-indigo-700 px-4 py-2 rounded-full font-mono font-bold flex items-center gap-2">
+                <i class="fas fa-stopwatch"></i>
+                <span id="time-left">25:00</span>
+                <button id="timer-toggle" class="hover:text-indigo-900"><i class="fas fa-play"></i></button>
+            </div>
+        </header>
+
+        <!-- Input Area -->
+        <div class="glass-card p-4 rounded-2xl shadow-sm mb-8">
+            <div class="flex gap-2">
+                <input type="text" id="task-input" placeholder="输入下一个任务..." 
+                    class="flex-1 bg-transparent border-none focus:ring-0 text-lg outline-none px-2">
+                <select id="task-category" class="bg-slate-100 rounded-lg px-2 text-sm outline-none border-none">
+                    <option value="today">🔥 今天</option>
+                    <option value="later">⏳ 稍后</option>
+                    <option value="goals">🎯 目标</option>
+                </select>
+                <button id="add-task" class="bg-indigo-600 text-white w-10 h-10 rounded-xl hover:bg-indigo-700 transition-colors flex items-center justify-center">
+                    <i class="fas fa-plus"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Filter Tabs -->
+        <div class="flex gap-6 mb-6 border-b border-slate-200 text-slate-500 font-medium">
+            <button onclick="filterTasks('today')" id="tab-today" class="pb-2 tab-active">今天必做</button>
+            <button onclick="filterTasks('later')" id="tab-later" class="pb-2">计划稍后</button>
+            <button onclick="filterTasks('goals')" id="tab-goals" class="pb-2">长期愿望</button>
+        </div>
+
+        <!-- Task List -->
+        <div id="task-list" class="space-y-3">
+            <!-- Tasks will be injected here -->
+        </div>
+
+        <!-- Empty State -->
+        <div id="empty-state" class="hidden text-center py-20">
+            <div class="text-slate-300 text-6xl mb-4"><i class="fas fa-check-circle"></i></div>
+            <p class="text-slate-400">太棒了，目前没有待办任务</p>
+        </div>
+    </div>
+
+    <script>
+        let tasks = JSON.parse(localStorage.getItem('zendo-tasks')) || [];
+        let currentFilter = 'today';
+        let timer = null;
+        let timeLeft = 25 * 60;
+        let isTimerRunning = false;
+
+        const taskInput = document.getElementById('task-input');
+        const categorySelect = document.getElementById('task-category');
+        const addTaskBtn = document.getElementById('add-task');
+        const taskList = document.getElementById('task-list');
+        const emptyState = document.getElementById('empty-state');
+        const timeLeftDisplay = document.getElementById('time-left');
+        const timerToggleBtn = document.getElementById('timer-toggle');
+
+        // --- Task Management ---
+
+        function renderTasks() {
+            const filtered = tasks.filter(t => t.category === currentFilter);
+            taskList.innerHTML = '';
+            
+            if (filtered.length === 0) {
+                emptyState.classList.remove('hidden');
+            } else {
+                emptyState.classList.add('hidden');
+                filtered.forEach((task, index) => {
+                    const div = document.createElement('div');
+                    div.className = `glass-card p-4 rounded-xl flex items-center justify-between group animate-fadeIn transition-all hover:shadow-md`;
+                    div.innerHTML = `
+                        <div class="flex items-center gap-3">
+                            <button onclick="toggleTask(${task.id})" class="w-6 h-6 rounded-full border-2 border-indigo-200 flex items-center justify-center hover:border-indigo-500 transition-colors">
+                                ${task.completed ? '<i class="fas fa-check text-indigo-500 text-xs"></i>' : ''}
+                            </button>
+                            <span class="${task.completed ? 'task-done text-slate-400' : 'text-slate-700'} font-medium">
+                                ${task.text}
+                            </span>
+                        </div>
+                        <button onclick="deleteTask(${task.id})" class="text-slate-300 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <i class="fas fa-trash-alt"></i>
+                        </button>
+                    `;
+                    taskList.appendChild(div);
+                });
+            }
+            saveData();
+        }
+
+        function addTask() {
+            const text = taskInput.value.trim();
+            if (!text) return;
+            
+            const newTask = {
+                id: Date.now(),
+                text: text,
+                category: categorySelect.value,
+                completed: false,
+                createdAt: new Date()
+            };
+            
+            tasks.unshift(newTask);
+            taskInput.value = '';
+            currentFilter = newTask.category;
+            updateTabs();
+            renderTasks();
+        }
+
+        function toggleTask(id) {
+            tasks = tasks.map(t => t.id === id ? {...t, completed: !t.completed} : t);
+            renderTasks();
+        }
+
+        function deleteTask(id) {
+            tasks = tasks.filter(t => t.id !== id);
+            renderTasks();
+        }
+
+        function filterTasks(cat) {
+            currentFilter = cat;
+            updateTabs();
+            renderTasks();
+        }
+
+        function updateTabs() {
+            ['today', 'later', 'goals'].forEach(cat => {
+                document.getElementById(`tab-${cat}`).className = cat === currentFilter ? 'pb-2 tab-active' : 'pb-2';
+            });
+        }
+
+        function saveData() {
+            localStorage.setItem('zendo-tasks', JSON.stringify(tasks));
+        }
+
+        // --- Timer Logic ---
+
+        function updateTimerDisplay() {
+            const mins = Math.floor(timeLeft / 60);
+            const secs = timeLeft % 60;
+            timeLeftDisplay.textContent = `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+        }
+
+        function toggleTimer() {
+            if (isTimerRunning) {
+                clearInterval(timer);
+                timerToggleBtn.innerHTML = '<i class="fas fa-play"></i>';
+            } else {
+                timer = setInterval(() => {
+                    timeLeft--;
+                    updateTimerDisplay();
+                    if (timeLeft <= 0) {
+                        clearInterval(timer);
+                        showNotification("专注时间结束！休息一下吧。");
+                        timeLeft = 25 * 60;
+                        isTimerRunning = false;
+                        timerToggleBtn.innerHTML = '<i class="fas fa-play"></i>';
+                    }
+                }, 1000);
+                timerToggleBtn.innerHTML = '<i class="fas fa-pause"></i>';
+            }
+            isTimerRunning = !isTimerRunning;
+        }
+
+        function showNotification(msg) {
+            const toast = document.createElement('div');
+            toast.className = "fixed bottom-4 right-4 bg-indigo-600 text-white px-6 py-3 rounded-lg shadow-xl animate-bounce";
+            toast.textContent = msg;
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 4000);
+        }
+
+        // --- Events ---
+        addTaskBtn.addEventListener('click', addTask);
+        taskInput.addEventListener('keypress', (e) => e.key === 'Enter' && addTask());
+        timerToggleBtn.addEventListener('click', toggleTimer);
+
+        // Initial Render
+        renderTasks();
+    </script>
+</body>
+</html>
