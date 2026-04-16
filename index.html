@@ -135,3 +135,115 @@
                         </div>
                         <div class="flex items-center gap-2 text-slate-300 transition-opacity">
                             <div class="flex gap-1 border-r border-slate-100 pr-2 mr-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                ${moveActions}
+                            </div>
+                            <button onclick="deleteTask(${task.id})" class="hover:text-red-400 p-1">
+                                <i class="fas fa-trash-alt"></i>
+                            </button>
+                        </div>
+                    `;
+                    taskList.appendChild(div);
+                });
+            }
+            saveData();
+        }
+
+        function addTask() {
+            const text = taskInput.value.trim();
+            if (!text) return;
+            
+            const newTask = {
+                id: Date.now(),
+                text: text,
+                category: categorySelect.value,
+                completed: false,
+                createdAt: new Date()
+            };
+            
+            tasks.unshift(newTask);
+            taskInput.value = '';
+            currentFilter = newTask.category;
+            updateTabs();
+            renderTasks();
+        }
+
+        function toggleTask(id) {
+            tasks = tasks.map(t => t.id === id ? {...t, completed: !t.completed} : t);
+            renderTasks();
+        }
+
+        function deleteTask(id) {
+            tasks = tasks.filter(t => t.id !== id);
+            renderTasks();
+        }
+
+        function moveTask(id, newCategory) {
+            tasks = tasks.map(t => t.id === id ? {...t, category: newCategory} : t);
+            renderTasks();
+        }
+
+        function filterTasks(cat) {
+            currentFilter = cat;
+            updateTabs();
+            renderTasks();
+        }
+
+        function updateTabs() {
+            ['today', 'later', 'goals'].forEach(cat => {
+                const btn = document.getElementById(`tab-${cat}`);
+                if (cat === currentFilter) {
+                    btn.className = 'pb-2 tab-active transition-all';
+                } else {
+                    btn.className = 'pb-2 transition-all';
+                }
+            });
+        }
+
+        function saveData() {
+            localStorage.setItem('zendo-tasks', JSON.stringify(tasks));
+        }
+
+        // --- Timer Logic ---
+        function updateTimerDisplay() {
+            const mins = Math.floor(timeLeft / 60);
+            const secs = timeLeft % 60;
+            timeLeftDisplay.textContent = `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+        }
+
+        function toggleTimer() {
+            if (isTimerRunning) {
+                clearInterval(timer);
+                timerToggleBtn.innerHTML = '<i class="fas fa-play"></i>';
+            } else {
+                timer = setInterval(() => {
+                    timeLeft--;
+                    updateTimerDisplay();
+                    if (timeLeft <= 0) {
+                        clearInterval(timer);
+                        showNotification("专注时间结束！休息一下吧。");
+                        timeLeft = 25 * 60;
+                        isTimerRunning = false;
+                        timerToggleBtn.innerHTML = '<i class="fas fa-play"></i>';
+                    }
+                }, 1000);
+                timerToggleBtn.innerHTML = '<i class="fas fa-pause"></i>';
+            }
+            isTimerRunning = !isTimerRunning;
+        }
+
+        function showNotification(msg) {
+            const toast = document.createElement('div');
+            toast.className = "fixed bottom-8 left-1/2 -translate-x-1/2 bg-slate-800 text-white px-6 py-3 rounded-full shadow-2xl z-50 animate-bounce";
+            toast.textContent = msg;
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 4000);
+        }
+
+        addTaskBtn.addEventListener('click', addTask);
+        taskInput.addEventListener('keypress', (e) => e.key === 'Enter' && addTask());
+        timerToggleBtn.addEventListener('click', toggleTimer);
+
+        renderTasks();
+    </script>
+</body>
+</html>
